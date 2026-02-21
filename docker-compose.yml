@@ -1,0 +1,10 @@
+services:
+  squid:
+    image: ubuntu/squid:latest
+    container_name: https-proxy
+    restart: unless-stopped
+    ports:
+      - "58673:58673"
+    volumes:
+      - ./squid.conf:/etc/squid/squid.conf:ro
+      - ./passwd:/etc/squid/passwd:ro
