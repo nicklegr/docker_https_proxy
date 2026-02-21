@@ -8,3 +8,4 @@ services:
     volumes:
       - ./squid.conf:/etc/squid/squid.conf:ro
       - ./passwd:/etc/squid/passwd:ro
+      - ./certs:/etc/squid/certs:ro
