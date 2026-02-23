@@ -4,25 +4,30 @@
 # ConoHa VPS Instance Creation Script
 # =========================================================
 
-# --- API Configuration ---
-# API情報の設定（ConoHaコントロールパネルの「API情報」から取得してください）
-API_USER="your_api_username"
-API_PASSWORD="your_api_password"
-TENANT_ID="your_tenant_id"
-REGION="tyo3" # tyo3, tyo2, tyo1, is1 のいずれかを指定
+# --- Load Configuration from .env ---
+if [ -f .env ]; then
+    # .env ファイルを読み込む（コメント行を除外）
+    export $(grep -v '^#' .env | xargs)
+else
+    echo "エラー: .env ファイルが見つかりません。.env.example を参考に作成してください。"
+    exit 1
+fi
 
-# --- VPS Configuration ---
+# 必須変数のチェック
+REQUIRED_VARS=("API_USER" "API_PASSWORD" "TENANT_ID" "REGION" "ADMIN_PASSWORD" "PROXY_PASSWORD")
+for var in "${REQUIRED_VARS[@]}"; do
+    if [ -z "${!var}" ]; then
+        echo "エラー: .env 内で $var が設定されていません。"
+        exit 1
+    fi
+done
+
+# --- VPS Configuration (Static) ---
 FLAVOR_NAME="512mb" # 512MBメモリのプラン
 IMAGE_NAME="centos-stream10" # CentOS Stream 10 のイメージ
-ADMIN_PASSWORD="YourSecurePassword_123!" # VPSのrootパスワード（必ず強固なものに変更してください）
-PROXY_PASSWORD="YourProxyPassword_123!" # HTTPSプロキシ接続用ユーザーのパスワード（必ず強固なものに変更してください）
 INSTANCE_NAME="docker-https-proxy"
 # =========================================================
 
-if [ "$API_USER" == "your_api_username" ]; then
-    echo "エラー: スクリプト内の API_USER などを設定してから実行してください。"
-    exit 1
-fi
 
 if ! command -v jq &> /dev/null; then
     echo "エラー: JSON解析ツール 'jq' がインストールされていません。"
