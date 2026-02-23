@@ -26,6 +26,9 @@ done
 FLAVOR_NAME="512mb" # 512MBメモリのプラン
 IMAGE_NAME="centos-stream10" # CentOS Stream 10 のイメージ
 INSTANCE_NAME="docker-https-proxy"
+
+# デバッグ設定 (1にすると実行されるコマンドを表示します)
+DEBUG=0
 # =========================================================
 
 
@@ -40,11 +43,11 @@ IDENTITY_API="https://identity.${REGION}.conoha.io/v2.0"
 COMPUTE_API="https://compute.${REGION}.conoha.io/v2/${TENANT_ID}"
 
 echo "[*] 認証トークンを取得しています..."
-TOKEN_RES=$(curl -s -X POST \
-  -H "Accept: application/json" \
-  -H "Content-Type: application/json" \
-  -d '{"auth":{"passwordCredentials":{"username":"'${API_USER}'","password":"'${API_PASSWORD}'"},"tenantId":"'${TENANT_ID}'"}}' \
-  ${IDENTITY_API}/tokens)
+AUTH_URL="${IDENTITY_API}/tokens"
+AUTH_DATA='{"auth":{"passwordCredentials":{"username":"'${API_USER}'","password":"'${API_PASSWORD}'"},"tenantId":"'${TENANT_ID}'"}}'
+CMD="curl -s -X POST -H \"Accept: application/json\" -H \"Content-Type: application/json\" -d '${AUTH_DATA}' ${AUTH_URL}"
+[ $DEBUG -eq 1 ] && echo "DEBUG CMD: $CMD"
+TOKEN_RES=$(eval "$CMD")
 
 TOKEN=$(echo "$TOKEN_RES" | jq -r '.access.token.id')
 
@@ -55,10 +58,10 @@ fi
 echo " -> トークンの取得に成功しました。"
 
 echo "[*] プラン '${FLAVOR_NAME}' の Flavor ID を取得しています..."
-FLAVOR_RES=$(curl -s -X GET \
-  -H "Accept: application/json" \
-  -H "X-Auth-Token: ${TOKEN}" \
-  ${COMPUTE_API}/flavors/detail)
+FLAVOR_URL="${COMPUTE_API}/flavors/detail"
+CMD="curl -s -X GET -H \"Accept: application/json\" -H \"X-Auth-Token: ${TOKEN}\" ${FLAVOR_URL}"
+[ $DEBUG -eq 1 ] && echo "DEBUG CMD: $CMD"
+FLAVOR_RES=$(eval "$CMD")
 
 FLAVOR_ID=$(echo "$FLAVOR_RES" | jq -r '.flavors[] | select(.name | ascii_downcase | contains("'${FLAVOR_NAME}'")) | .id' | head -n 1)
 
@@ -69,10 +72,10 @@ fi
 echo " -> Flavor ID: ${FLAVOR_ID}"
 
 echo "[*] イメージ '${IMAGE_NAME}' の Image ID を取得しています..."
-IMAGE_RES=$(curl -s -X GET \
-  -H "Accept: application/json" \
-  -H "X-Auth-Token: ${TOKEN}" \
-  ${COMPUTE_API}/images/detail)
+IMAGE_URL="${COMPUTE_API}/images/detail"
+CMD="curl -s -X GET -H \"Accept: application/json\" -H \"X-Auth-Token: ${TOKEN}\" ${IMAGE_URL}"
+[ $DEBUG -eq 1 ] && echo "DEBUG CMD: $CMD"
+IMAGE_RES=$(eval "$CMD")
 
 IMAGE_ID=$(echo "$IMAGE_RES" | jq -r '.images[] | select(.name | contains("'${IMAGE_NAME}'")) | .id' | head -n 1)
 
@@ -97,13 +100,8 @@ USER_DATA=$(echo "$STARTUP_SCRIPT" | base64 -w 0)
 echo " -> スクリプトのエンコードが完了しました。"
 
 echo "[*] VPSインスタンス '${INSTANCE_NAME}' を作成しています..."
-# ポート開放用に "gncs-ipv4-all" (すべてのIPv4を許可) を指定しています。
-# https-proxy (例: port 58673) へアクセスできるようにするためです。
-CREATE_RES=$(curl -s -X POST \
-  -H "Accept: application/json" \
-  -H "Content-Type: application/json" \
-  -H "X-Auth-Token: ${TOKEN}" \
-  -d '{
+CREATE_URL="${COMPUTE_API}/servers"
+CREATE_DATA='{
     "server": {
         "name": "'${INSTANCE_NAME}'",
         "imageRef": "'${IMAGE_ID}'",
@@ -115,7 +113,10 @@ CREATE_RES=$(curl -s -X POST \
             {"name": "gncs-ipv4-all"}
         ]
     }
-}' ${COMPUTE_API}/servers)
+}'
+CMD="curl -s -X POST -H \"Accept: application/json\" -H \"Content-Type: application/json\" -H \"X-Auth-Token: ${TOKEN}\" -d '${CREATE_DATA}' ${CREATE_URL}"
+[ $DEBUG -eq 1 ] && echo "DEBUG CMD: $CMD"
+CREATE_RES=$(eval "$CMD")
 
 CREATED_ID=$(echo "$CREATE_RES" | jq -r '.server.id')
 
@@ -137,10 +138,10 @@ RETRY_COUNT=0
 IP_ADDRESS=""
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    SERVER_DETAIL_RES=$(curl -s -X GET \
-        -H "Accept: application/json" \
-        -H "X-Auth-Token: ${TOKEN}" \
-        ${COMPUTE_API}/servers/${CREATED_ID})
+    DETAIL_URL="${COMPUTE_API}/servers/${CREATED_ID}"
+    CMD="curl -s -X GET -H \"Accept: application/json\" -H \"X-Auth-Token: ${TOKEN}\" ${DETAIL_URL}"
+    [ $DEBUG -eq 1 ] && echo "DEBUG CMD: $CMD"
+    SERVER_DETAIL_RES=$(eval "$CMD")
 
     STATUS=$(echo "$SERVER_DETAIL_RES" | jq -r '.server.status')
 
