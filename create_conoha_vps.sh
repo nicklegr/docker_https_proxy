@@ -13,7 +13,7 @@ REGION="tyo3" # tyo3, tyo2, tyo1, is1 のいずれかを指定
 
 # --- VPS Configuration ---
 FLAVOR_NAME="512mb" # 512MBメモリのプラン
-IMAGE_NAME="vmi-ubuntu-22.04" # Ubuntu 22.04 のイメージ
+IMAGE_NAME="centos-stream10" # CentOS Stream 10 のイメージ
 ADMIN_PASSWORD="YourSecurePassword_123!" # VPSのrootパスワード（必ず強固なものに変更してください）
 INSTANCE_NAME="docker-https-proxy"
 # =========================================================
