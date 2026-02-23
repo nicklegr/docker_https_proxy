@@ -23,7 +23,7 @@ for var in "${REQUIRED_VARS[@]}"; do
 done
 
 # --- VPS Configuration (Static) ---
-FLAVOR_NAME="512mb" # 512MBメモリのプラン
+FLAVOR_NAME="1gb" # 1gbメモリのプラン
 IMAGE_NAME="centos-stream10" # CentOS Stream 10 のイメージ
 INSTANCE_NAME="docker-https-proxy"
 
@@ -64,18 +64,36 @@ if [ "$TOKEN" == "null" ] || [ -z "$TOKEN" ]; then
 fi
 echo " -> トークンの取得に成功しました。"
 
-echo "[*] プラン '${FLAVOR_NAME}' の Flavor ID を取得しています..."
+echo "[*] 利用可能な Flavor の一覧を取得しています..."
 FLAVOR_URL="${COMPUTE_API}/flavors/detail"
 CMD="curl -s -X GET -H \"Accept: application/json\" -H \"X-Auth-Token: ${TOKEN}\" ${FLAVOR_URL}"
 [ $DEBUG -eq 1 ] && echo "DEBUG CMD: $CMD"
 FLAVOR_RES=$(eval "$CMD")
 
+# 取得した全フレーバーをスペック付きで表示（デバッグ用）
+echo "--------------------------------------------------------------------------------"
+echo " 利用可能なプラン一覧 (Flavor List):"
+printf "%-15s | %-10s | %-10s | %s\n" "Name" "RAM(MB)" "Disk(GB)" "ID"
+echo "--------------------------------------------------------------------------------"
+echo "$FLAVOR_RES" | jq -r '.flavors[] | "\(.name)|\(.ram)|\(.disk)|\(.id)"' | while IFS='|' read -r name ram disk id; do
+    printf "%-15s | %-10s | %-10s | %s\n" "$name" "$ram" "$disk" "$id"
+done
+echo "--------------------------------------------------------------------------------"
+
+# 指定された名前に合致するものを検索
 FLAVOR_ID=$(echo "$FLAVOR_RES" | jq -r '.flavors[] | select(.name | ascii_downcase | contains("'${FLAVOR_NAME}'")) | .id' | head -n 1)
 
 if [ -z "$FLAVOR_ID" ]; then
-    echo " -> エラー: プラン '${FLAVOR_NAME}' が見つかりませんでした。"
+    echo " -> エラー: プラン '${FLAVOR_NAME}' が見つかりませんでした。上記の一覧から名前を確認してください。"
     exit 1
 fi
+
+SELECTED_FLAVOR_INFO=$(echo "$FLAVOR_RES" | jq -r '.flavors[] | select(.id == "'${FLAVOR_ID}'")')
+SELECTED_NAME=$(echo "$SELECTED_FLAVOR_INFO" | jq -r '.name')
+SELECTED_RAM=$(echo "$SELECTED_FLAVOR_INFO" | jq -r '.ram')
+SELECTED_DISK=$(echo "$SELECTED_FLAVOR_INFO" | jq -r '.disk')
+
+echo " -> 選択されたプラン: ${SELECTED_NAME} (RAM: ${SELECTED_RAM}MB, Disk: ${SELECTED_DISK}GB)"
 echo " -> Flavor ID: ${FLAVOR_ID}"
 
 echo "[*] イメージ '${IMAGE_NAME}' の Image ID を取得しています..."
