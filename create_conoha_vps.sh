@@ -23,8 +23,8 @@ for var in "${REQUIRED_VARS[@]}"; do
 done
 
 # --- VPS Configuration (Static) ---
-FLAVOR_NAME="g-c2m1d100" # 1gbメモリのプラン
-IMAGE_NAME="centos-stream10" # CentOS Stream 10 のイメージ
+FLAVOR_NAME="g-c1m512d30" # 512MBメモリのプラン
+IMAGE_NAME="vmi-centos-stream10-amd64-30gb" # CentOS Stream 10 のイメージ
 INSTANCE_NAME="docker-https-proxy"
 
 # デバッグ設定 (1にすると実行されるコマンドを表示します)
