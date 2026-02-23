@@ -123,4 +123,53 @@ fi
 echo " -> 成功！ VPSインスタンスの作成が開始されました。"
 echo " -> インスタンス ID: ${CREATED_ID}"
 echo ""
-echo "ConoHa コントロールパネルにログインして、IPアドレスや起動状況を確認してください。"
+
+echo "[*] インスタンスの起動を待機しています（IPアドレスの取得）..."
+
+# インスタンスがACTIVEになり、IPアドレスが割り当てられるまでポーリング
+MAX_RETRIES=60
+RETRY_COUNT=0
+IP_ADDRESS=""
+
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    SERVER_DETAIL_RES=$(curl -s -X GET \
+        -H "Accept: application/json" \
+        -H "X-Auth-Token: ${TOKEN}" \
+        ${COMPUTE_API}/servers/${CREATED_ID})
+
+    STATUS=$(echo "$SERVER_DETAIL_RES" | jq -r '.server.status')
+
+    if [ "$STATUS" == "ACTIVE" ]; then
+        # jqでIPv4アドレスを抽出 (ConoHaでは通常 ext-net または同等のネットワーク名配下に割り当てられる)
+        IP_ADDRESS=$(echo "$SERVER_DETAIL_RES" | jq -r '.server.addresses[][] | select(.version == 4) | .addr' | head -n 1)
+        if [ -n "$IP_ADDRESS" ] && [ "$IP_ADDRESS" != "null" ]; then
+            break
+        fi
+    elif [ "$STATUS" == "ERROR" ]; then
+        echo " -> エラー: インスタンスの作成がエラー状態になりました。"
+        exit 1
+    fi
+
+    echo -n "."
+    sleep 5
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+done
+
+echo ""
+
+if [ -z "$IP_ADDRESS" ] || [ "$IP_ADDRESS" == "null" ]; then
+    echo " -> タイムアウト: IPアドレスの取得に時間がかかっています。"
+    echo " -> ConoHa コントロールパネルにログインして、IPアドレスや起動状況を確認してください。"
+else
+    echo "========================================================="
+    echo " VPSインスタンスが起動しました！"
+    echo "========================================================="
+    echo " -> IPアドレス: ${IP_ADDRESS}"
+    echo " -> 接続方法: ssh root@${IP_ADDRESS}"
+    echo ""
+    echo " プロキシは数分後に自動でセットアップされます。"
+    echo " プロキシURL: ${IP_ADDRESS}:58673"
+    echo " -> ユーザー名: user"
+    echo " -> パスワード: ${PROXY_PASSWORD}"
+    echo "========================================================="
+fi
