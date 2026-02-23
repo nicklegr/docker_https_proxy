@@ -101,19 +101,47 @@ echo " -> スクリプトのエンコードが完了しました。"
 
 echo "[*] VPSインスタンス '${INSTANCE_NAME}' を作成しています..."
 CREATE_URL="${COMPUTE_API}/servers"
-CREATE_DATA='{
-    "server": {
-        "name": "'${INSTANCE_NAME}'",
-        "imageRef": "'${IMAGE_ID}'",
-        "flavorRef": "'${FLAVOR_ID}'",
-        "adminPass": "'${ADMIN_PASSWORD}'",
-        "user_data": "'${USER_DATA}'",
-        "security_groups": [
-            {"name": "default"},
-            {"name": "gncs-ipv4-all"}
-        ]
-    }
-}'
+
+# 512MBプランの場合、DISK容量が0のため「Boot from Volume」が必要
+if [[ "$FLAVOR_NAME" =~ "512mb" ]]; then
+    echo " -> 512MBプランを検知: ボリューム(30GB)を作成して起動します。"
+    CREATE_DATA='{
+        "server": {
+            "name": "'${INSTANCE_NAME}'",
+            "flavorRef": "'${FLAVOR_ID}'",
+            "adminPass": "'${ADMIN_PASSWORD}'",
+            "user_data": "'${USER_DATA}'",
+            "security_groups": [
+                {"name": "default"},
+                {"name": "gncs-ipv4-all"}
+            ],
+            "block_device_mapping_v2": [{
+                "uuid": "'${IMAGE_ID}'",
+                "source_type": "image",
+                "destination_type": "volume",
+                "boot_index": "0",
+                "volume_size": "30",
+                "delete_on_termination": true
+            }]
+        }
+    }'
+else
+    # 1GB以上のプランは内蔵ディスクから起動可能
+    CREATE_DATA='{
+        "server": {
+            "name": "'${INSTANCE_NAME}'",
+            "imageRef": "'${IMAGE_ID}'",
+            "flavorRef": "'${FLAVOR_ID}'",
+            "adminPass": "'${ADMIN_PASSWORD}'",
+            "user_data": "'${USER_DATA}'",
+            "security_groups": [
+                {"name": "default"},
+                {"name": "gncs-ipv4-all"}
+            ]
+        }
+    }'
+fi
+
 CMD="curl -s -X POST -H \"Accept: application/json\" -H \"Content-Type: application/json\" -H \"X-Auth-Token: ${TOKEN}\" -d '${CREATE_DATA}' ${CREATE_URL}"
 [ $DEBUG -eq 1 ] && echo "DEBUG CMD: $CMD"
 CREATE_RES=$(eval "$CMD")
