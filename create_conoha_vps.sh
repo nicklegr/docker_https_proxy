@@ -28,7 +28,7 @@ IMAGE_NAME="centos-stream10" # CentOS Stream 10 のイメージ
 INSTANCE_NAME="docker-https-proxy"
 
 # デバッグ設定 (1にすると実行されるコマンドを表示します)
-DEBUG=0
+DEBUG=1
 # =========================================================
 
 
@@ -44,10 +44,17 @@ COMPUTE_API="https://compute.${REGION}.conoha.io/v2/${TENANT_ID}"
 
 echo "[*] 認証トークンを取得しています..."
 AUTH_URL="${IDENTITY_API}/tokens"
-AUTH_DATA='{"auth":{"passwordCredentials":{"username":"'${API_USER}'","password":"'${API_PASSWORD}'"},"tenantId":"'${TENANT_ID}'"}}'
-CMD="curl -s -X POST -H \"Accept: application/json\" -H \"Content-Type: application/json\" -d '${AUTH_DATA}' ${AUTH_URL}"
-[ $DEBUG -eq 1 ] && echo "DEBUG CMD: $CMD"
+PAYLOAD_FILE="payload.json"
+jq -n \
+  --arg username "$API_USER" \
+  --arg password "$API_PASSWORD" \
+  --arg tenantId "$TENANT_ID" \
+  '{"auth":{"passwordCredentials":{"username":$username,"password":$password},"tenantId":$tenantId}}' > "$PAYLOAD_FILE"
+
+CMD="curl -s -X POST -H \"Accept: application/json\" -H \"Content-Type: application/json\" -d @$PAYLOAD_FILE $AUTH_URL"
+[ $DEBUG -eq 1 ] && echo "DEBUG CMD: $CMD" && cat "$PAYLOAD_FILE" && echo ""
 TOKEN_RES=$(eval "$CMD")
+rm -f "$PAYLOAD_FILE"
 
 TOKEN=$(echo "$TOKEN_RES" | jq -r '.access.token.id')
 
@@ -101,22 +108,29 @@ echo " -> スクリプトのエンコードが完了しました。"
 
 echo "[*] VPSインスタンス '${INSTANCE_NAME}' を作成しています..."
 CREATE_URL="${COMPUTE_API}/servers"
+PAYLOAD_FILE="payload.json"
 
 # 512MBプランの場合、DISK容量が0のため「Boot from Volume」が必要
 if [[ "$FLAVOR_NAME" =~ "512mb" ]]; then
     echo " -> 512MBプランを検知: ボリューム(30GB)を作成して起動します。"
-    CREATE_DATA='{
+    jq -n \
+      --arg name "$INSTANCE_NAME" \
+      --arg flavor "$FLAVOR_ID" \
+      --arg pass "$ADMIN_PASSWORD" \
+      --arg data "$USER_DATA" \
+      --arg img "$IMAGE_ID" \
+      '{
         "server": {
-            "name": "'${INSTANCE_NAME}'",
-            "flavorRef": "'${FLAVOR_ID}'",
-            "adminPass": "'${ADMIN_PASSWORD}'",
-            "user_data": "'${USER_DATA}'",
+            "name": $name,
+            "flavorRef": $flavor,
+            "adminPass": $pass,
+            "user_data": $data,
             "security_groups": [
                 {"name": "default"},
                 {"name": "gncs-ipv4-all"}
             ],
             "block_device_mapping_v2": [{
-                "uuid": "'${IMAGE_ID}'",
+                "uuid": $img,
                 "source_type": "image",
                 "destination_type": "volume",
                 "boot_index": "0",
@@ -124,27 +138,34 @@ if [[ "$FLAVOR_NAME" =~ "512mb" ]]; then
                 "delete_on_termination": true
             }]
         }
-    }'
+      }' > "$PAYLOAD_FILE"
 else
     # 1GB以上のプランは内蔵ディスクから起動可能
-    CREATE_DATA='{
+    jq -n \
+      --arg name "$INSTANCE_NAME" \
+      --arg img "$IMAGE_ID" \
+      --arg flavor "$FLAVOR_ID" \
+      --arg pass "$ADMIN_PASSWORD" \
+      --arg data "$USER_DATA" \
+      '{
         "server": {
-            "name": "'${INSTANCE_NAME}'",
-            "imageRef": "'${IMAGE_ID}'",
-            "flavorRef": "'${FLAVOR_ID}'",
-            "adminPass": "'${ADMIN_PASSWORD}'",
-            "user_data": "'${USER_DATA}'",
+            "name": $name,
+            "imageRef": $img,
+            "flavorRef": $flavor,
+            "adminPass": $pass,
+            "user_data": $data,
             "security_groups": [
                 {"name": "default"},
                 {"name": "gncs-ipv4-all"}
             ]
         }
-    }'
+      }' > "$PAYLOAD_FILE"
 fi
 
-CMD="curl -s -X POST -H \"Accept: application/json\" -H \"Content-Type: application/json\" -H \"X-Auth-Token: ${TOKEN}\" -d '${CREATE_DATA}' ${CREATE_URL}"
-[ $DEBUG -eq 1 ] && echo "DEBUG CMD: $CMD"
+CMD="curl -s -X POST -H \"Accept: application/json\" -H \"Content-Type: application/json\" -H \"X-Auth-Token: ${TOKEN}\" -d @$PAYLOAD_FILE $CREATE_URL"
+[ $DEBUG -eq 1 ] && echo "DEBUG CMD: $CMD" && cat "$PAYLOAD_FILE" && echo ""
 CREATE_RES=$(eval "$CMD")
+rm -f "$PAYLOAD_FILE"
 
 CREATED_ID=$(echo "$CREATE_RES" | jq -r '.server.id')
 
