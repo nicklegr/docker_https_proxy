@@ -28,7 +28,7 @@ IMAGE_NAME="centos-stream10" # CentOS Stream 10 のイメージ
 INSTANCE_NAME="docker-https-proxy"
 
 # デバッグ設定 (1にすると実行されるコマンドを表示します)
-DEBUG=1
+DEBUG=0
 # =========================================================
 
 
