@@ -70,15 +70,17 @@ CMD="curl -s -X GET -H \"Accept: application/json\" -H \"X-Auth-Token: ${TOKEN}\
 [ $DEBUG -eq 1 ] && echo "DEBUG CMD: $CMD"
 FLAVOR_RES=$(eval "$CMD")
 
-# 取得した全フレーバーをスペック付きで表示（デバッグ用）
-echo "--------------------------------------------------------------------------------"
-echo " 利用可能なプラン一覧 (Flavor List):"
-printf "%-15s | %-10s | %-10s | %s\n" "Name" "RAM(MB)" "Disk(GB)" "ID"
-echo "--------------------------------------------------------------------------------"
-echo "$FLAVOR_RES" | jq -r '.flavors[] | "\(.name)|\(.ram)|\(.disk)|\(.id)"' | while IFS='|' read -r name ram disk id; do
-    printf "%-15s | %-10s | %-10s | %s\n" "$name" "$ram" "$disk" "$id"
-done
-echo "--------------------------------------------------------------------------------"
+if [ $DEBUG -eq 1 ]; then
+    # 取得した全フレーバーをスペック付きで表示
+    echo "--------------------------------------------------------------------------------"
+    echo " 利用可能なプラン一覧 (Flavor List):"
+    printf "%-15s | %-10s | %-10s | %s\n" "Name" "RAM(MB)" "Disk(GB)" "ID"
+    echo "--------------------------------------------------------------------------------"
+    echo "$FLAVOR_RES" | jq -r '.flavors[] | "\(.name)|\(.ram)|\(.disk)|\(.id)"' | while IFS='|' read -r name ram disk id; do
+        printf "%-15s | %-10s | %-10s | %s\n" "$name" "$ram" "$disk" "$id"
+    done
+    echo "--------------------------------------------------------------------------------"
+fi
 
 # 指定された名前に合致するものを検索
 FLAVOR_ID=$(echo "$FLAVOR_RES" | jq -r '.flavors[] | select(.name | ascii_downcase | contains("'${FLAVOR_NAME}'")) | .id' | head -n 1)
@@ -101,6 +103,18 @@ IMAGE_URL="${COMPUTE_API}/images/detail"
 CMD="curl -s -X GET -H \"Accept: application/json\" -H \"X-Auth-Token: ${TOKEN}\" ${IMAGE_URL}"
 [ $DEBUG -eq 1 ] && echo "DEBUG CMD: $CMD"
 IMAGE_RES=$(eval "$CMD")
+
+if [ $DEBUG -eq 1 ]; then
+    # 取得した全イメージをスペック付きで表示
+    echo "--------------------------------------------------------------------------------"
+    echo " 利用可能なイメージ一覧 (Image List):"
+    printf "%-40s | %s\n" "Name" "ID"
+    echo "--------------------------------------------------------------------------------"
+    echo "$IMAGE_RES" | jq -r '.images[] | "\(.name)|\(.id)"' | while IFS='|' read -r name id; do
+        printf "%-40s | %s\n" "$name" "$id"
+    done
+    echo "--------------------------------------------------------------------------------"
+fi
 
 IMAGE_ID=$(echo "$IMAGE_RES" | jq -r '.images[] | select(.name | contains("'${IMAGE_NAME}'")) | .id' | head -n 1)
 
