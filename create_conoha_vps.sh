@@ -15,6 +15,7 @@ REGION="tyo3" # tyo3, tyo2, tyo1, is1 のいずれかを指定
 FLAVOR_NAME="512mb" # 512MBメモリのプラン
 IMAGE_NAME="centos-stream10" # CentOS Stream 10 のイメージ
 ADMIN_PASSWORD="YourSecurePassword_123!" # VPSのrootパスワード（必ず強固なものに変更してください）
+PROXY_PASSWORD="YourProxyPassword_123!" # HTTPSプロキシ接続用ユーザーのパスワード（必ず強固なものに変更してください）
 INSTANCE_NAME="docker-https-proxy"
 # =========================================================
 
@@ -76,6 +77,20 @@ if [ -z "$IMAGE_ID" ]; then
 fi
 echo " -> Image ID: ${IMAGE_ID}"
 
+echo "[*] スタートアップスクリプトを生成しています..."
+STARTUP_SCRIPT=$(cat <<EOF
+#!/bin/bash
+yum install -y git
+git clone https://github.com/nicklegr/docker_https_proxy.git /root/docker_https_proxy
+cd /root/docker_https_proxy
+./install_docker.sh
+./setup_auth.sh user "${PROXY_PASSWORD}"
+docker compose up -d
+EOF
+)
+USER_DATA=$(echo "$STARTUP_SCRIPT" | base64 -w 0)
+echo " -> スクリプトのエンコードが完了しました。"
+
 echo "[*] VPSインスタンス '${INSTANCE_NAME}' を作成しています..."
 # ポート開放用に "gncs-ipv4-all" (すべてのIPv4を許可) を指定しています。
 # https-proxy (例: port 58673) へアクセスできるようにするためです。
@@ -89,6 +104,7 @@ CREATE_RES=$(curl -s -X POST \
         "imageRef": "'${IMAGE_ID}'",
         "flavorRef": "'${FLAVOR_ID}'",
         "adminPass": "'${ADMIN_PASSWORD}'",
+        "user_data": "'${USER_DATA}'",
         "security_groups": [
             {"name": "default"},
             {"name": "gncs-ipv4-all"}
