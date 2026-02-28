@@ -142,57 +142,26 @@ echo "[*] VPSインスタンス '${INSTANCE_NAME}' を作成しています..."
 CREATE_URL="${COMPUTE_API}/servers"
 PAYLOAD_FILE="payload.json"
 
-# 512MBプランの場合、DISK容量が0のため「Boot from Volume」が必要
-if [[ "$FLAVOR_NAME" =~ "512mb" ]]; then
-    echo " -> 512MBプランを検知: ボリューム(30GB)を作成して起動します。"
-    jq -n \
-      --arg name "$INSTANCE_NAME" \
-      --arg flavor "$FLAVOR_ID" \
-      --arg pass "$ADMIN_PASSWORD" \
-      --arg data "$USER_DATA" \
-      --arg img "$IMAGE_ID" \
-      '{
-        "server": {
-            "name": $name,
-            "flavorRef": $flavor,
-            "adminPass": $pass,
-            "user_data": $data,
-            "security_groups": [
-                {"name": "default"},
-                {"name": "gncs-ipv4-all"}
-            ],
-            "block_device_mapping_v2": [{
-                "uuid": $img,
-                "source_type": "image",
-                "destination_type": "volume",
-                "boot_index": "0",
-                "volume_size": "30",
-                "delete_on_termination": true
-            }]
-        }
-      }' > "$PAYLOAD_FILE"
-else
-    # 1GB以上のプランは内蔵ディスクから起動可能
-    jq -n \
-      --arg name "$INSTANCE_NAME" \
-      --arg img "$IMAGE_ID" \
-      --arg flavor "$FLAVOR_ID" \
-      --arg pass "$ADMIN_PASSWORD" \
-      --arg data "$USER_DATA" \
-      '{
-        "server": {
-            "name": $name,
-            "imageRef": $img,
-            "flavorRef": $flavor,
-            "adminPass": $pass,
-            "user_data": $data,
-            "security_groups": [
-                {"name": "default"},
-                {"name": "gncs-ipv4-all"}
-            ]
-        }
-      }' > "$PAYLOAD_FILE"
-fi
+# 1GB以上のプランは内蔵ディスクから起動可能
+jq -n \
+  --arg name "$INSTANCE_NAME" \
+  --arg img "$IMAGE_ID" \
+  --arg flavor "$FLAVOR_ID" \
+  --arg pass "$ADMIN_PASSWORD" \
+  --arg data "$USER_DATA" \
+  '{
+    "server": {
+        "name": $name,
+        "imageRef": $img,
+        "flavorRef": $flavor,
+        "adminPass": $pass,
+        "user_data": $data,
+        "security_groups": [
+            {"name": "default"},
+            {"name": "gncs-ipv4-all"}
+        ]
+    }
+  }' > "$PAYLOAD_FILE"
 
 CMD="curl -s -X POST -H \"Accept: application/json\" -H \"Content-Type: application/json\" -H \"X-Auth-Token: ${TOKEN}\" -d @$PAYLOAD_FILE $CREATE_URL"
 [ $DEBUG -eq 1 ] && echo "DEBUG CMD: $CMD" && cat "$PAYLOAD_FILE" && echo ""
