@@ -254,11 +254,50 @@ else
     echo " -> IPアドレス: ${IP_ADDRESS}"
     echo " -> 接続方法: ssh root@${IP_ADDRESS}"
     echo ""
-    echo " プロキシは数分後に自動でセットアップされます。"
-    echo " プロキシURL: ${IP_ADDRESS}:58673"
-    echo " -> ユーザー名: user"
-    echo " -> パスワード: ${PROXY_PASSWORD}"
-    echo "========================================================="
+    echo "[*] プロキシの起動を待機しています（これには数分かかる場合があります）..."
+    
+    PROXY_URL="${IP_ADDRESS}:58673"
+    PROXY_USER="user"
+    # cURL testing URL (example.com is reliable for testing proxy)
+    TEST_URL="https://www.google.com"
+    
+    # プロキシが疎通するまでポーリング (最大10分)
+    MAX_PROXY_RETRIES=60
+    PROXY_RETRY_COUNT=0
+    PROXY_SUCCESS=0
+
+    while [ $PROXY_RETRY_COUNT -lt $MAX_PROXY_RETRIES ]; do
+        # -x: プロキシを指定
+        # -U: プロキシ認証
+        # --connect-timeout: 接続タイムアウト
+        # -s: サイレントモード
+        # -I: ヘッダーのみ取得
+        if curl -s --proxy-insecure -I -x "https://${PROXY_URL}" -U "${PROXY_USER}:${PROXY_PASSWORD}" --connect-timeout 5 "$TEST_URL" > /dev/null 2>&1; then
+            PROXY_SUCCESS=1
+            break
+        fi
+
+        echo -n "."
+        sleep 10
+        PROXY_RETRY_COUNT=$((PROXY_RETRY_COUNT + 1))
+    done
+
+    echo ""
+
+    if [ $PROXY_SUCCESS -eq 1 ]; then
+        echo "========================================================="
+        echo " プロキシの疎通確認に成功しました！"
+        echo "========================================================="
+        echo " プロキシURL: ${PROXY_URL}"
+        echo " -> ユーザー名: ${PROXY_USER}"
+        echo " -> パスワード: ${PROXY_PASSWORD}"
+        echo "========================================================="
+    else
+        echo " -> 警告: プロキシの疎通確認がタイムアウトしました。"
+        echo " -> スタートアップスクリプトの実行が遅れているか、エラーが発生している可能性があります。"
+        echo " -> SSHでログインして `docker ps` やログを確認してください。"
+    fi
+
     echo ""
     echo "[!] インスタンスを削除する場合のコマンド:"
     echo "./delete_conoha_vps.sh ${CREATED_ID}"
